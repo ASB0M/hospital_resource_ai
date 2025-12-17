@@ -1,4 +1,5 @@
-
+import numpy as np
+import random
 
 class Patient:
     """
@@ -41,34 +42,44 @@ class Patient:
         pass
 
     def next_state(self):
+       def next_state(self):
         """
-        Docstring for next_state
-        
-        HMM logic to calculate if patient moves to critical or discharge state
+        HMM Logic with RISK ADJUSTMENT and CRASH PROTECTION
         """
+        # 1. Handle Terminal States (Stop if dead or discharged)
         if self.current_state in ["Discharged", "Deceased"]:
             return self.current_state
 
-        # Base Probabilities for a "Low Urgency" Patient
-        # [To Stable, To Critical, To Discharged, To Deceased]
+        # 2. Define Probabilities based on current state
+        # We initialize it to None to catch errors
+        probs = None 
+
         if self.current_state == "Stable":
+            # Default for Low Urgency
             probs = [0.80, 0.05, 0.15, 0.00] 
             
-            # for medium urgency
-            if self.urgency_label == 2: # Medium
-                # Higher chance to turn Critical (15%), Lower chance to Discharge (5%)
+            # Risk Adjustment for Medium Urgency
+            if self.urgency_label == 2: 
                 probs = [0.80, 0.15, 0.05, 0.00]
 
         elif self.current_state == "Critical":
             probs = [0.30, 0.60, 0.05, 0.05]
 
-        # Use the chosen probabilities
+        # 3. SAFETY NET (The Fix)
+        # If probs is still None, it means the state name was weird.
+        # We force a default behavior to prevent the crash.
+        if probs is None:
+            print(f"DEBUG: Unknown state '{self.current_state}' detected. Resetting to Stable.")
+            self.current_state = "Stable"
+            probs = [0.80, 0.05, 0.15, 0.00]
+
+        # 4. Roll the Dice
         states = ["Stable", "Critical", "Discharged", "Deceased"]
         new_state = np.random.choice(states, p=probs)
         
         self.current_state = new_state
         return new_state
-    
+       
     def tick(self):
         """
         Advance patient time by 1 day
