@@ -20,27 +20,28 @@ def generate_random_patient_features():
     complaint = random.choice(['Chest Pain', 'Flu', 'Difficulty Breathing', 'Trauma'])
     
     # Basic correlations
-    if complaint == 'Chest Pain':
-        hr = random.randint(100, 140)
-        bp = random.randint(150, 190)
-        temp = random.uniform(36.5, 37.5)
-        spo2 = random.randint(94, 99)
-    elif complaint == 'Flu':
-        hr = random.randint(80, 110)
-        bp = random.randint(110, 130)
-        temp = random.uniform(37.5, 40.0)
-        spo2 = random.randint(95, 99)
-    elif complaint == 'Difficulty Breathing':
-        hr = random.randint(90, 120)
-        bp = random.randint(130, 160)
-        temp = random.uniform(36.5, 37.5)
-        spo2 = random.randint(80, 92) # Low Oxygen!
-    else: # Trauma
-        hr = random.randint(100, 130)
-        bp = random.randint(80, 100) # Low BP
-        temp = random.uniform(36.5, 37.0)
-        spo2 = random.randint(90, 99)
+    hr = random.randint(60, 90)       # Normal
+    bp = random.randint(110, 130)     # Normal
+    temp = random.uniform(36.5, 37.2) # Normal
+    spo2 = random.randint(97, 100)    # Normal
 
+    if complaint == 'Chest Pain':
+        hr = random.randint(100, 140)   # Tachycardia
+        bp = random.randint(150, 200)   # Hypertension
+        # Chest pain usually has normal temp/spo2
+            
+    elif complaint == 'Flu':
+        temp = random.uniform(37.5, 40.5) # Fever
+        hr = random.randint(90, 110)
+            
+    elif complaint == 'Difficulty Breathing':
+        spo2 = random.randint(80, 95)     # Hypoxia
+        hr = random.randint(100, 120)
+
+    elif complaint == 'Trauma':
+        hr = random.randint(110, 140)     # Shock
+        bp = random.randint(80, 110) 
+        
     return {
         "Age": random.randint(18, 90),
         "Gender": random.choice([0, 1]),
@@ -54,14 +55,14 @@ def generate_random_patient_features():
 # ---------------------------------------------------------
 # MAIN SIMULATION LOOP
 # ---------------------------------------------------------
-def run_simulation(days=30, new_patients_per_day=10):
+def run_simulation(days, max_patients_per_day):
     print("------------------------------------------------")
     print("INITIALIZING HOSPITAL AI SYSTEM")
     print("------------------------------------------------")
 
     # 1. Setup the Environment
     # We create a small hospital to force the AI to make tough choices
-    hospital = Hospital(total_icu=5, total_general=20) 
+    hospital = Hospital(total_icu=15, total_general=40) 
     
     # 2. Wake up the Agent
     agent = HospitalAgent(model_dir='src/models/') # Loads .pkl files
@@ -76,25 +77,38 @@ def run_simulation(days=30, new_patients_per_day=10):
         hospital.simulate_day()
         
         # B. Generate New Arrivals
+
+        new_patients_per_day = random.randint(1, max_patients_per_day)
+
         print(f"\n--- New Arrivals ({new_patients_per_day}) ---")
+        # ... inside run_simulation ...
+
+        print(f"\n--- New Arrivals ({new_patients_per_day}) ---")
+        
+        # OPTIMIZATION: In a real system, we would batch this.
+        # For this simulation, we will keep the loop but ensure data flow is clean.
+        
         for _ in range(new_patients_per_day):
             patient_counter += 1
             
-            # Create raw features
+            # 1. Generate Raw Data
             features = generate_random_patient_features()
             
-            # PRE-PROCESS: Ask Agent for initial prediction 
-            # (We need this to initialize the Patient object's HMM state)
+            # 2. Predict (Uses the fixed Allocator logic)
+            # The agent now handles the Dict -> DataFrame conversion internally
             pred_urgency, pred_los = agent.predictor(features)
             
-            # Create Patient Object
+            # 3. Create Patient
             new_patient = Patient(patient_counter, features, pred_los, pred_urgency)
             
-            # AGENT DECISION
+            # 4. Decide
             action = agent.allocate_resources(new_patient, hospital)
             
-            # Visualize the decision
-            urgency_text = ["Low", "Med", "Crit"][pred_urgency]
+            # 5. Logging (Fixing the Urgency Text mapping)
+            # MAPPING: 0=Critical, 1=Low, 2=Medium (Alphabetical)
+            urgency_map = {0: "Critical", 1: "Low", 2: "Medium"}
+            urgency_text = urgency_map.get(pred_urgency, "Unknown")
+            
             print(f"Patient {patient_counter} ({features['Complaint']}) -> AI: {urgency_text} -> Action: {action}")
 
         # C. Print Daily Status
@@ -115,4 +129,7 @@ def run_simulation(days=30, new_patients_per_day=10):
     print("------------------------------------------------")
 
 if __name__ == "__main__":
-    run_simulation(days=7, new_patients_per_day=5)
+
+    max_patients_per_day = input("Enter the number of new patients arriving each day (e.g., 20): ")
+
+    run_simulation(days=50, max_patients_per_day=int(max_patients_per_day))

@@ -42,49 +42,65 @@ class Patient:
         pass
 
     def next_state(self):
-       def next_state(self):
         """
-        HMM Logic with RISK ADJUSTMENT and CRASH PROTECTION
+        HMM Logic with RESOURCE DEPENDENCY
         """
-        # 1. Handle Terminal States (Stop if dead or discharged)
+        # 1. Handle Terminal States
         if self.current_state in ["Discharged", "Deceased"]:
             return self.current_state
 
-        # 2. Define Probabilities based on current state
-        # We initialize it to None to catch errors
+        # 2. Define Probabilities
+        # Format: [To Stable, To Critical, To Discharged, To Deceased]
         probs = None 
 
         if self.current_state == "Stable":
-            # Default for Low Urgency
+            # Stable patients are generally fine regardless of bed
+            # Default: 80% stay stable, 5% relapse, 15% go home, 0% die
             probs = [0.80, 0.05, 0.15, 0.00] 
             
-            # Risk Adjustment for Medium Urgency
+            # Slight risk increase for Medium Urgency (Label 2)
             if self.urgency_label == 2: 
-                probs = [0.80, 0.15, 0.05, 0.00]
+                probs = [0.80, 0.10, 0.05, 0.05]
 
         elif self.current_state == "Critical":
-            probs = [0.30, 0.60, 0.05, 0.05]
+            # --- THE CRITICAL FIX IS HERE ---
+            # Outcome MUST depend on the Bed Type!
+            
+            if self.assigned_bed_type == "ICU":
+                # Good Care: High chance to stabilize, Low death
+                # [Stable, Critical, Discharged, Deceased]
+                probs = [0.30, 0.60, 0.05, 0.05] 
+            
+            elif self.assigned_bed_type == "GENERAL":
+                # Suboptimal Care: Low chance to stabilize, HIGH death
+                probs = [0.10, 0.50, 0.05, 0.35] # 35% Death Rate!
+                
+            else:
+                # No Bed (Refused) or Waiting Room: Disaster
+                probs = [0.00, 0.40, 0.00, 0.60] # 60% Death Rate!
 
-        # 3. SAFETY NET (The Fix)
-        # If probs is still None, it means the state name was weird.
-        # We force a default behavior to prevent the crash.
+        # 3. SAFETY NET
         if probs is None:
-            print(f"DEBUG: Unknown state '{self.current_state}' detected. Resetting to Stable.")
+            # Fallback
             self.current_state = "Stable"
             probs = [0.80, 0.05, 0.15, 0.00]
 
         # 4. Roll the Dice
         states = ["Stable", "Critical", "Discharged", "Deceased"]
+        
+        # Normalize probs just in case floating point math makes them sum to 1.0000001
+        probs = np.array(probs)
+        probs /= probs.sum()
+        
         new_state = np.random.choice(states, p=probs)
         
         self.current_state = new_state
         return new_state
-       
+
     def tick(self):
         """
         Advance patient time by 1 day
         """
-
         self.days_stayed += 1
         
         # Force discharge if they exceeded their LOS (Simulation Logic)

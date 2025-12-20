@@ -4,116 +4,88 @@ import numpy as np
 import os
 
 class HospitalAgent:
-    def __init__(self, model_dir='models/'):
-        """
-        Initializes the AI Agent.
-        :param model_dir: Path to the folder containing .pkl files
-        """
+    def __init__(self, model_dir='src/models/'):
         self.model_dir = model_dir
-        self.triage = None
-        self.los = None
-        self.encoder_complaint = None
-        self.encoder_urgency = None
         
-        # Load models immediately
+        # DEFINITIONS
+        # This MUST match the list in Step 1 (Training) exactly.
+        self.feature_order = ['Age', 'Gender', 'Complaint_Code', 'HR', 'BP', 'Temp', 'SpO2']
+        
         self.load_models()
 
     def load_models(self):
-        """
-        Loads the trained Naive Bayes and Regression models.
-        """
         try:
-            print("Agent: Loading AI Models...")
             self.triage_model = joblib.load(os.path.join(self.model_dir, 'triage.pkl'))
             self.los_model = joblib.load(os.path.join(self.model_dir, 'los.pkl'))
             self.encoder_complaint = joblib.load(os.path.join(self.model_dir, 'encoder_complaint.pkl'))
             self.encoder_urgency = joblib.load(os.path.join(self.model_dir, 'encoder_urgency.pkl'))
-            print("Agent: Models loaded successfully.")
+            self.scaler = joblib.load(os.path.join(self.model_dir, 'scaler.pkl')) # Load the new scaler
         except FileNotFoundError as e:
-            print(f"CRITICAL ERROR: Could not load models. {e}")
-            print("Did you run your Jupyter Notebook training script yet?")
+            print(f"CRITICAL ERROR: {e}")
+            print("Run 'triage_analysis.ipynb' again to generate the missing .pkl files.")
 
-    def predictor(self, patient_features):
+    def predictor(self, features):
         """
-        Input: Dictionary of patient data (Age, BP, Complaint, etc.)
-        Output: (predicted_urgency_code, predicted_los_days)
+        Input: Dictionary (e.g., {'Age': 20, 'Complaint': 'Flu'...})
+        Output: urgency_level (int), los (float)
         """
-        # 1. Prepare Data for Model
-        # We must convert 'Complaint' text to a number using the Encoder
+        # 1. Convert Dict to DataFrame
+        df = pd.DataFrame([features])
+
+        # 2. Encode Complaint (String -> Int)
+        # We handle cases where the random generator might make a typo, though unlikely here.
         try:
-            complaint_code = self.encoder_complaint.transform([patient_features['Complaint']])[0]
-        except ValueError:
-            # Handle unknown complaints (fallback to common one)
-            complaint_code = 0 
-        
-        # Create a DataFrame matching the EXACT order of training columns
-        input_data_triage = pd.DataFrame([{
-            'HR': patient_features['HR'],
-            'BP': patient_features['BP'],
-            'Temp': patient_features['Temp'],
-            'SpO2': patient_features['SpO2'],
-            'Complaint_Code': complaint_code
-        }])
+            # Check if valid complaint
+            if df['Complaint'].iloc[0] in self.encoder_complaint.classes_:
+                df['Complaint_Code'] = self.encoder_complaint.transform(df['Complaint'])
+            else:
+                df['Complaint_Code'] = 0 # Default to 0 if unknown
+        except:
+             df['Complaint_Code'] = 0
 
-        input_data_los = pd.DataFrame([{
-            'Age': patient_features['Age'],
-            'Gender': patient_features['Gender'],
-            'HR': patient_features['HR'],
-            'BP': patient_features['BP'],
-            'Temp': patient_features['Temp'],
-            'SpO2': patient_features['SpO2'],
-            'Complaint_Code': complaint_code
-        }])
+        # 3. Align Columns (The "Silent Failure" Fix)
+        # This ensures 'HR' is in column 3, even if the dictionary put it in column 1.
+        X_raw = df[self.feature_order]
 
-        # 2. Run Predictions
-        urgency_pred = self.triage_model.predict(input_data_triage)[0]
-        los_pred = self.los_model.predict(input_data_los)[0]
+        # 4. Scale Data (The "Data Integrity" Fix)
+        X_scaled = self.scaler.transform(X_raw)
+
+        # 5. Predict
+        urgency_pred = self.triage_model.predict(X_scaled)[0]
         
-        # Ensure LOS isn't negative
-        los_pred = max(1.0, round(los_pred, 1))
-        
+        # NOTE: If LOS model uses different features, you need a separate scaler/feature list.
+        # Assuming for now LOS uses the same features:
+        los_pred = self.los_model.predict(X_scaled)[0]
+
         return urgency_pred, los_pred
 
     def allocate_resources(self, patient, hospital):
-        """
-        THE DECISION LOGIC (Constraint Satisfaction)
-        Decides where to put the patient based on predictions and hospital state.
-        """
-        # Get AI predictions
-        urgency, los = self.predictor(patient.features)
+        urgency = patient.urgency_label
         
-        # Assign these predictions to the patient object for HMM use later
-        patient.urgency_label = urgency
-        patient.expected_los = los
+        # Decoding the LabelEncoder Logic
+        # Based on your files: 0=Critical, 2=Medium, 1=Low (Alphabetical order of C, L, M)
         
-        # --- STRATEGY RULES ---
-        
-        # 1. CRITICAL PATIENTS (Label 0)
-        if urgency == 0:
-            # Try ICU first
+        if urgency == 0: # Critical
             if hospital.admit_patient(patient, "ICU"):
                 return "Assigned ICU (Critical)"
-            # If ICU full, try General (Step-down care)
             elif hospital.admit_patient(patient, "GENERAL"):
                 return "Assigned General (ICU Overflow)"
             else:
                 return "Refused (No Beds)"
-
-        # 2. MEDIUM PATIENTS (Label 2)
-        elif urgency == 2:
-            # Try General Ward
-            if hospital.admit_patient(patient, "GENERAL"):
+        
+        elif urgency == 2: # Medium
+             if hospital.admit_patient(patient, "GENERAL"):
                 return "Assigned General (Medium)"
-            else:
-                return "Refused (No General Beds)"
+             else:
+                return "Refused (No Beds)"
 
-        # 3. LOW PATIENTS (Label 1)
-        else:
-            # Try General Ward, but only if we have > 10% capacity buffer
-            # (Don't fill the hospital with healthy people!)
-            free_general = hospital.capacity["GENERAL"] - len(hospital.occupied["GENERAL"])
-            if free_general > (hospital.capacity["GENERAL"] * 0.1):
-                if hospital.admit_patient(patient, "GENERAL"):
-                    return "Assigned General (Low)"
-            
-            return "Refused (Low Priority / Ward Full)"
+        elif urgency == 1: # Low
+            # Only admit low priority if we have > 10% buffer
+            buffer = hospital.capacity["GENERAL"] * 0.1
+            if (hospital.capacity["GENERAL"] - len(hospital.occupied["GENERAL"])) > buffer:
+                hospital.admit_patient(patient, "GENERAL")
+                return "Assigned General (Low Priority)"
+            else:
+                return "Refused (Save Beds for Critical)"
+        
+        return "Error in Allocation Logic"
