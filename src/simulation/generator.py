@@ -9,7 +9,6 @@ def generate_patient_data(num_patients = 10000, save_path = 'data/raw/patients.c
     data = []
 
     for i in range(num_patients):
-        # 1. Randomly pick a profile
         # Weighted choice: Make Chest Pain and Trauma slightly rarer than Flu
         complaint = random.choices(
             ['Chest Pain', 'Flu', 'Difficulty Breathing', 'Trauma', 'General Checkup'],
@@ -19,8 +18,7 @@ def generate_patient_data(num_patients = 10000, save_path = 'data/raw/patients.c
         
         age = random.randint(18, 90)
 
-        # 2. Generate Vitals based on profile (CORRELATION STEP)
-        # We set defaults, then override based on complaint
+        # Generate Vitals based on profile
         hr = random.randint(60, 90)       # Normal
         bp = random.randint(110, 130)     # Normal
         temp = random.uniform(36.5, 37.2) # Normal
@@ -43,17 +41,17 @@ def generate_patient_data(num_patients = 10000, save_path = 'data/raw/patients.c
             hr = random.randint(110, 140)     # Shock
             bp = random.randint(80, 110)      # Hypotension (bleeding)
             
-        # 3. Assign Labels (THE IMPROVED LOGIC)
+        # Assign Labels
         # Priority: Critical -> Medium -> Low
         
-        # CRITICAL CRITERIA (Any of these makes you Critical)
+        # CRITICAL CRITERIA 
         if (complaint == 'Chest Pain' and bp > 160) or \
            (spo2 < 90) or \
            (complaint == 'Trauma' and bp < 90) or \
            (hr > 130):
             urgency = "Critical"
             
-        # MEDIUM CRITERIA (If not Critical, check these)
+        # MEDIUM CRITERIA
         elif (temp > 38.5) or \
              (complaint == 'Chest Pain') or \
              (complaint == 'Trauma') or \
@@ -64,8 +62,7 @@ def generate_patient_data(num_patients = 10000, save_path = 'data/raw/patients.c
         else:
             urgency = "Low"
 
-        # 4. Logic for Length of Stay (LOS)
-        # Add noise using random.gauss so regression isn't too easy
+        # Logic for Length of Stay (LOS)
         base_stay = 2
         
         if urgency == "Critical":

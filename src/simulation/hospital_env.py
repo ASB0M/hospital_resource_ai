@@ -45,50 +45,38 @@ class Patient:
         """
         HMM Logic with RESOURCE DEPENDENCY
         """
-        # 1. Handle Terminal States
+        # Handle Terminal States
         if self.current_state in ["Discharged", "Deceased"]:
             return self.current_state
 
-        # 2. Define Probabilities
+        # Define Probabilities
         # Format: [To Stable, To Critical, To Discharged, To Deceased]
         probs = None 
 
         if self.current_state == "Stable":
-            # Stable patients are generally fine regardless of bed
-            # Default: 80% stay stable, 5% relapse, 15% go home, 0% die
             probs = [0.80, 0.05, 0.15, 0.00] 
             
-            # Slight risk increase for Medium Urgency (Label 2)
             if self.urgency_label == 2: 
                 probs = [0.80, 0.10, 0.05, 0.05]
 
         elif self.current_state == "Critical":
-            # --- THE CRITICAL FIX IS HERE ---
-            # Outcome MUST depend on the Bed Type!
             
             if self.assigned_bed_type == "ICU":
-                # Good Care: High chance to stabilize, Low death
                 # [Stable, Critical, Discharged, Deceased]
                 probs = [0.30, 0.60, 0.05, 0.05] 
             
             elif self.assigned_bed_type == "GENERAL":
-                # Suboptimal Care: Low chance to stabilize, HIGH death
-                probs = [0.10, 0.50, 0.05, 0.35] # 35% Death Rate!
+                probs = [0.10, 0.50, 0.05, 0.35] 
                 
             else:
-                # No Bed (Refused) or Waiting Room: Disaster
-                probs = [0.00, 0.40, 0.00, 0.60] # 60% Death Rate!
+                probs = [0.00, 0.40, 0.00, 0.60] 
 
-        # 3. SAFETY NET
         if probs is None:
-            # Fallback
             self.current_state = "Stable"
             probs = [0.80, 0.05, 0.15, 0.00]
 
-        # 4. Roll the Dice
         states = ["Stable", "Critical", "Discharged", "Deceased"]
         
-        # Normalize probs just in case floating point math makes them sum to 1.0000001
         probs = np.array(probs)
         probs /= probs.sum()
         
@@ -107,7 +95,6 @@ class Patient:
         if self.days_stayed >= self.expected_los and self.current_state != "Deceased":
             self.current_state = "Discharged"
         else:
-            # Run HMM to see if health changes
             self.next_state()
 
 
@@ -161,7 +148,6 @@ class Hospital:
         print(f"\n--- End of Day Report ---")
         
         for bed_type in ["ICU", "GENERAL"]:
-            # Iterate backwards so we can remove items safely
             for patient in self.occupied[bed_type][:]: 
                 
                 patient.tick() # Advance time/health
@@ -179,7 +165,6 @@ class Hospital:
                     
                 elif patient.current_state == "Critical" and bed_type == "GENERAL":
                     print(f"WARNING: Patient {patient.id} in General Ward turned Critical!")
-                    # (Optional Project Expansion: Logic to move them to ICU could go here)
 
     def get_status(self):
         return {
