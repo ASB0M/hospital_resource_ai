@@ -141,11 +141,14 @@ class Hospital:
             self.stats["refused"] += 1
             return False
 
-    def simulate_day(self):
+    def simulate_day(self, verbose=True):
         """
         The Main Loop: Updates every patient currently in a bed.
+        Returns a list of event strings for the UI.
         """
-        print(f"\n--- End of Day Report ---")
+        events = []
+        if verbose:
+            print(f"\n--- End of Day Report ---")
         
         for bed_type in ["ICU", "GENERAL"]:
             for patient in self.occupied[bed_type][:]: 
@@ -154,17 +157,25 @@ class Hospital:
                 
                 # Handle Departures
                 if patient.current_state == "Discharged":
-                    print(f"Patient {patient.id} recovered and left {bed_type}.")
+                    msg = f"Patient {patient.id} recovered and left {bed_type}."
+                    events.append(msg)
+                    if verbose: print(msg)
                     self.occupied[bed_type].remove(patient)
                     self.stats["discharged"] += 1
                     
                 elif patient.current_state == "Deceased":
-                    print(f"Patient {patient.id} passed away in {bed_type}.")
+                    msg = f"Patient {patient.id} passed away in {bed_type}."
+                    events.append(msg)
+                    if verbose: print(msg)
                     self.occupied[bed_type].remove(patient)
                     self.stats["deceased"] += 1
                     
                 elif patient.current_state == "Critical" and bed_type == "GENERAL":
-                    print(f"WARNING: Patient {patient.id} in General Ward turned Critical!")
+                    msg = f"WARNING: Patient {patient.id} in General Ward turned Critical!"
+                    events.append(msg)
+                    if verbose: print(msg)
+        
+        return events
 
     def get_status(self):
         return {

@@ -7,45 +7,9 @@ import numpy as np
 
 from src.simulation.hospital_env import Hospital, Patient
 from src.agent.allocator import HospitalAgent
+from src.simulation.generator import generate_random_patient_features
 
-def generate_random_patient_features():
-    """
-    Creates a dictionary of random vitals to simulate a new arrival.
-    We use similar logic to the generator to ensure realistic patterns.
-    """
-    complaint = random.choice(['Chest Pain', 'Flu', 'Difficulty Breathing', 'Trauma'])
-    
-    # Basic correlations
-    hr = random.randint(60, 90)       # Normal
-    bp = random.randint(110, 130)     # Normal
-    temp = random.uniform(36.5, 37.2) # Normal
-    spo2 = random.randint(97, 100)    # Normal
 
-    if complaint == 'Chest Pain':
-        hr = random.randint(100, 140)   # Tachycardia
-        bp = random.randint(150, 200)   # Hypertension
-            
-    elif complaint == 'Flu':
-        temp = random.uniform(37.5, 40.5) # Fever
-        hr = random.randint(90, 110)
-            
-    elif complaint == 'Difficulty Breathing':
-        spo2 = random.randint(80, 95)     # Hypoxia
-        hr = random.randint(100, 120)
-
-    elif complaint == 'Trauma':
-        hr = random.randint(110, 140)     # Shock
-        bp = random.randint(80, 110) 
-        
-    return {
-        "Age": random.randint(18, 90),
-        "Gender": random.choice([0, 1]),
-        "HR": hr,
-        "BP": bp,
-        "Temp": round(temp, 1),
-        "SpO2": spo2,
-        "Complaint": complaint
-    }
 
 def run_simulation(days, max_patients_per_day):
     print("------------------------------------------------")
@@ -68,7 +32,6 @@ def run_simulation(days, max_patients_per_day):
 
         print(f"\n--- New Arrivals ({new_patients_per_day}) ---")
 
-        print(f"\n--- New Arrivals ({new_patients_per_day}) ---")
         
         for _ in range(new_patients_per_day):
             patient_counter += 1
