@@ -3,7 +3,8 @@ import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
@@ -48,9 +49,14 @@ lr_pred = lr_model.predict(X_test)
 # Evaluating the model
 
 mse = mean_squared_error(y_test, lr_pred)
+mae = mean_absolute_error(y_test, lr_pred)
+rmse = np.sqrt(mse)
 r2 = r2_score(y_test, lr_pred)
-print(f"Mean Squared Error: {mse}")
-print(f"R-squared: {r2}")
+
+print(f"Mean Squared Error: {mse:.4f}")
+print(f"Mean Absolute Error: {mae:.4f}")
+print(f"Root Mean Squared Error: {rmse:.4f}")
+print(f"R-squared: {r2:.4f}")
 
 rfr_model = RandomForestRegressor()
 
@@ -61,9 +67,14 @@ rfr_pred = rfr_model.predict(X_test)
 # Evaluating the model
 
 mse = mean_squared_error(y_test, rfr_pred)
+mae = mean_absolute_error(y_test, rfr_pred)
+rmse = np.sqrt(mse)
 r2 = r2_score(y_test, rfr_pred)
-print(f"Mean Squared Error: {mse}")
-print(f"R-squared: {r2}")
+
+print(f"Mean Squared Error: {mse:.4f}")
+print(f"Mean Absolute Error: {mae:.4f}")
+print(f"Root Mean Squared Error: {rmse:.4f}")
+print(f"R-squared: {r2:.4f}")
 
 # EXPORTING MODEL TO SRC
 
